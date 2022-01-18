@@ -1,0 +1,35 @@
+{
+  "name": "CCTV",
+  "version": "0.0.1",
+  "description": "Community Curated Token Voting for NFTs",
+  "scripts": {
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "contract-sizes": "hardhat size-contracts",
+    "lint": "prettier --write ."
+  },
+  "author": "Simon Brown",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.4",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "chai": "^4.3.4",
+    "ethereum-waffle": "^3.4.0",
+    "ethers": "^5.5.3",
+    "hardhat": "^2.8.1",
+    "hardhat-contract-sizer": "^2.3.1",
+    "hardhat-gas-reporter": "^1.0.7",
+    "prettier": "^2.5.1",
+    "solidity-coverage": "^0.7.17"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.4.1"
+  },
+  "prettier": {
+    "trailingComma": "all",
+    "printWidth": 100,
+    "tabWidth": 2,
+    "semi": false,
+    "singleQuote": true
+  }
+}
