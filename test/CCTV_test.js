@@ -12,7 +12,13 @@ describe('Coordinator', function () {
       token = await Token.deploy(toWei(10000n), 'NFT Voting Token', 'VOTE').then(c => c.deployed())
 
       const Coordinator = await ethers.getContractFactory('Coordinator')
-      contractInstance = await Coordinator.deploy(token.address, '0x000000000000000000000000000000000000dead', '0x0000000000000000000000000000000000000000').then(c => c.deployed())
+      contractInstance = await Coordinator.deploy().then(c => c.deployed())
+
+      const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+      await contractInstance.initialize(token.address, ZERO_ADDRESS, ZERO_ADDRESS)
+
+      // contractInstance = await Coordinator.deploy(token.address, '0x000000000000000000000000000000000000dead', '0x0000000000000000000000000000000000000000').then(c => c.deployed())
 
       return { contractInstance, token }
     } else {
