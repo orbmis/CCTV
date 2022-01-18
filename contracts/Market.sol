@@ -49,8 +49,37 @@ contract Market is IERC721Receiver, Datastorage {
         bytes data
     );
 
-    constructor(address coordinatorContractAddress) {
+    /**
+     * This is basically the smart contract's constructor.
+     * Becuase we are using contracts as modules behind a common router,
+     * the constructor will not be run in the context of the router's storage when we deploy
+     * a new version of this module / contract. For that reason we emply an "initializer".
+     * This can only be run once, and needs to be called manually directly after deployment.
+     *
+     * NOTE: this contract to send calls to the coordinator contract via the router
+     * otherwise we need to update the coordinator contract address in this contract
+     * every time we upgrade the coordinator contract and vice-versa.
+     * Therefore the value of the "coordinatorContractAddress" should actually be the
+     * address of the router contract, which should forward the calls to the coordinator.
+     *
+     * @param coordinatorContractAddress The address of the coordinator contract (router).
+     */
+    function initialize(address coordinatorContractAddress) external {
+        bytes32 storagePosition = keccak256("cctv.market.0.0.1");
+
+        bool contractInitialized;
+
+        assembly {
+            contractInitialized := sload(storagePosition)
+        }
+
+        require(contractInitialized == false, "Contract already initialized");
+
         coordinator = Coordinator(coordinatorContractAddress);
+
+        assembly {
+            sstore(storagePosition, true)
+        }
     }
 
     /**

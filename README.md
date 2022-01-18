@@ -161,19 +161,3 @@ If the seller cancels the auction, then all funds that are held in escrow are re
 In order to start an auction, an NFT owner must pay a fee.  This is to prevent spoofing, whereby auctions are created, but then cancelled before they reach their stated close, in order to make it appear that item is more valuable than it is.
 
 When an NFT is sold, a fee goes to the system from the sale of the NFT, which 0.3% of the amount sold.
-
-
-
-# Hardhat commands
-
-This project is built using Hardhat. Below are the commands available:
-
-```shell
-npx hardhat accounts
-npx hardhat compile
-npx hardhat clean
-npx hardhat test
-npx hardhat node
-node scripts/sample-script.js
-npx hardhat help
-```

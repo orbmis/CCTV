@@ -76,11 +76,38 @@ contract Coordinator is Datastorage {
         _;
     }
 
-    constructor(
+    /**
+     * This is basically the smart contract's constructor.
+     * Becuase we are using contracts as modules behind a common router,
+     * the constructor will not be run in the context of the router's storage when we deploy
+     * a new version of this module / contract. For that reason we emply an "initializer".
+     * This can only be run once, and needs to be called manually directly after deployment.
+     *
+     * NOTE: this contract to send calls to the market contract via the router
+     * otherwise we need to update the market contract address in this contract
+     * every time we upgrade the market contract and vice-versa.
+     * Therefore the value of the "marketContractAddress" should actually be the
+     * address of the router contract, which should forward the calls to the market contract.
+     *
+     * @param tokenAddress The address of the native token of the platform.
+     * @param marketContractAddress The address of the market contract (router).
+     * @param adminAddress The adress of the admin of the contract.
+     */
+    function initialize(
         address tokenAddress,
         address marketContractAddress,
         address adminAddress
-    ) {
+    ) external {
+        bytes32 storagePosition = keccak256("cctv.coordinator.0.0.1");
+
+        bool contractInitialized;
+
+        assembly {
+            contractInitialized := sload(storagePosition)
+        }
+
+        require(contractInitialized == false, "Contract already initialized");
+
         token = ERC20(tokenAddress);
 
         marketContract = marketContractAddress;
@@ -93,6 +120,10 @@ contract Coordinator is Datastorage {
 
         // the first category is the default category, which cannot be edited or assigned to an item
         categories.push("default");
+
+        assembly {
+            sstore(storagePosition, true)
+        }
     }
 
     /**
