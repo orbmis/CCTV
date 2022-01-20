@@ -7,6 +7,9 @@ pragma solidity >=0.7.0 <0.9.0;
  */
 contract Router {
 
+    // aligns with slot 0 of datastorage contract, which has same variable
+    address router;
+
     // storage position of the admin address of the router.
     bytes32 private constant ROUTER_ADMIN = keccak256('cctv.proxy.admin');
 
@@ -23,6 +26,7 @@ contract Router {
     */
     constructor() {
         setRouterAdmin(msg.sender);
+        router = address(this);
     }
 
     /**

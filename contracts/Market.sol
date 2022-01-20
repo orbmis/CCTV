@@ -6,6 +6,7 @@ import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "./Coordinator.sol";
+import "./Router.sol";
 import "./Datastorage.sol";
 
 /**
@@ -48,39 +49,6 @@ contract Market is IERC721Receiver, Datastorage {
         uint256 tokenId,
         bytes data
     );
-
-    /**
-     * This is basically the smart contract's constructor.
-     * Becuase we are using contracts as modules behind a common router,
-     * the constructor will not be run in the context of the router's storage when we deploy
-     * a new version of this module / contract. For that reason we emply an "initializer".
-     * This can only be run once, and needs to be called manually directly after deployment.
-     *
-     * NOTE: this contract to send calls to the coordinator contract via the router
-     * otherwise we need to update the coordinator contract address in this contract
-     * every time we upgrade the coordinator contract and vice-versa.
-     * Therefore the value of the "coordinatorContractAddress" should actually be the
-     * address of the router contract, which should forward the calls to the coordinator.
-     *
-     * @param coordinatorContractAddress The address of the coordinator contract (router).
-     */
-    function initialize(address coordinatorContractAddress) external {
-        bytes32 storagePosition = keccak256("cctv.market.0.0.1");
-
-        bool contractInitialized;
-
-        assembly {
-            contractInitialized := sload(storagePosition)
-        }
-
-        require(contractInitialized == false, "Contract already initialized");
-
-        coordinator = Coordinator(coordinatorContractAddress);
-
-        assembly {
-            sstore(storagePosition, true)
-        }
-    }
 
     /**
      * Handles the receipt of an NFT. The ERC721 smart contract calls this function on the recipient
@@ -139,7 +107,7 @@ contract Market is IERC721Receiver, Datastorage {
     function withdrawNFT(address tokenContractAddress, uint256 tokenId)
         external
     {
-        Item memory item = coordinator.getItemByTokenId(tokenId);
+        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         uint256 auctionClose = item.auctionClose;
 
@@ -182,7 +150,7 @@ contract Market is IERC721Receiver, Datastorage {
         uint256 reservePrice,
         uint256 auctionClose
     ) external {
-        Item memory item = coordinator.getItemByTokenId(tokenId);
+        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         address tokenContract = item.tokendata.tokenAddress;
         uint256 currentClose = item.auctionClose;
@@ -202,7 +170,7 @@ contract Market is IERC721Receiver, Datastorage {
             "Only token owners can start an auction for the token"
         );
 
-        coordinator.clearItemAuctionData(tokenId);
+        Coordinator(router).clearItemAuctionData(tokenId);
 
         emit AuctionStarted(tokenContract, tokenId, reservePrice, auctionClose);
     }
@@ -215,7 +183,7 @@ contract Market is IERC721Receiver, Datastorage {
      * @param tokenId The nft's unique token id.
      */
     function cancelAuction(uint256 tokenId) external {
-        Item memory item = coordinator.getItemByTokenId(tokenId);
+        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         address tokenContract = item.tokendata.tokenAddress;
 
@@ -229,11 +197,11 @@ contract Market is IERC721Receiver, Datastorage {
             "Cannot cancel an auction that has already ended"
         );
 
-        coordinator.clearItemAuctionData(tokenId);
+        Coordinator(router).clearItemAuctionData(tokenId);
 
         // unlock all locked bids curently held in escrow
         for (uint256 i = 0; i < bids[tokenId].length; i++) {
-            coordinator.updateBalance(
+            Coordinator(router).updateBalance(
                 bids[tokenId][i].bidder,
                 bids[tokenId][i].bidPrice,
                 true,
@@ -255,10 +223,10 @@ contract Market is IERC721Receiver, Datastorage {
      * @param bidPrice The price the user is willing to bid for the item.
      */
     function placeBid(uint256 tokenId, uint256 bidPrice) external {
-        Item memory item = coordinator.getItemByTokenId(tokenId);
+        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         // bidder must have enough balance to cover bid
-        uint256 available = coordinator.getAvailableBalance(msg.sender);
+        uint256 available = Coordinator(router).getAvailableBalance(msg.sender);
 
         require(available >= bidPrice, "Insufficient balance to place bid");
 
@@ -283,7 +251,7 @@ contract Market is IERC721Receiver, Datastorage {
         );
 
         // bid will be locked in escrow until auction closes
-        coordinator.updateBalance(msg.sender, bidPrice, false, true);
+        Coordinator(router).updateBalance(msg.sender, bidPrice, false, true);
         // balancesLocked[msg.sender] += bidPrice;
 
         // record new bid against item
@@ -299,7 +267,7 @@ contract Market is IERC721Receiver, Datastorage {
      * @param bidPrice The price the user has bidded for the item.
      */
     function cancelBid(uint256 tokenId, uint256 bidPrice) external {
-        Item memory item = coordinator.getItemByTokenId(tokenId);
+        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         Bid memory bid;
 
@@ -326,7 +294,7 @@ contract Market is IERC721Receiver, Datastorage {
         );
 
         // unlock funds for bidder
-        coordinator.updateBalance(msg.sender, bidPrice, true, true);
+        Coordinator(router).updateBalance(msg.sender, bidPrice, true, true);
         // balancesLocked[msg.sender] -= bidPrice;
 
         // remove bid
@@ -341,7 +309,7 @@ contract Market is IERC721Receiver, Datastorage {
      * @param tokenId The nft's unique token id.
      */
     function completeAuction(uint256 tokenId) external {
-        Item memory item = coordinator.getItemByTokenId(tokenId);
+        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         address bidder = bids[tokenId][bids[tokenId].length - 1].bidder;
         uint256 bidPrice = bids[tokenId][bids[tokenId].length - 1].bidPrice;
@@ -359,15 +327,15 @@ contract Market is IERC721Receiver, Datastorage {
         );
 
         // reset the item's auction parameters
-        coordinator.clearItemAuctionData(tokenId);
+        Coordinator(router).clearItemAuctionData(tokenId);
 
         // clear all auction bids for this item
         delete bids[tokenId];
 
         // transfer tokens to item seller from bidder
-        coordinator.updateBalance(bidder, bidPrice, true, true);
-        coordinator.updateBalance(bidder, bidPrice, true, false);
-        coordinator.updateBalance(nftOwners[tokenId], bidPrice, false, false);
+        Coordinator(router).updateBalance(bidder, bidPrice, true, true);
+        Coordinator(router).updateBalance(bidder, bidPrice, true, false);
+        Coordinator(router).updateBalance(nftOwners[tokenId], bidPrice, false, false);
         // balancesLocked[bidder] -= bidPrice;
         // balances[bidder] -= bidPrice;
         // balances[nftOwners[tokenId]] += bidPrice;
@@ -383,7 +351,7 @@ contract Market is IERC721Receiver, Datastorage {
      * @param salePrice The price to sell the item for.
      */
     function sellItem(uint256 tokenId, uint256 salePrice) external {
-        coordinator.initiateItemSale(tokenId, salePrice);
+        Coordinator(router).initiateItemSale(tokenId, salePrice);
     }
 
     /**
@@ -393,7 +361,7 @@ contract Market is IERC721Receiver, Datastorage {
      * @param tokenId The token id of the item to put up for sale.
      */
     function buyItem(uint256 tokenId) external {
-        bool result = coordinator.completeItemSale(tokenId, msg.sender);
+        bool result = Coordinator(router).completeItemSale(tokenId, msg.sender);
 
         if (result) {
             nftOwners[tokenId] = msg.sender;

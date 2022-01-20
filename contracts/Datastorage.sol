@@ -13,6 +13,8 @@ import "./Coordinator.sol";
  */
 contract Datastorage {
 
+    address router;
+
     // the native token for this system
     ERC20 token;
 
