@@ -19,6 +19,8 @@ contract Datastorage is IBase {
     // the native token for this system
     ERC20 token;
 
+    ICoordinator coordinator;
+
     // the address of the market / auction contract
     // only the market contract can call functions to update balances etc.
     address marketContract;
@@ -61,8 +63,6 @@ contract Datastorage is IBase {
     // by easily looking up a commitment to determine if it already exists
     // we don't need to enumerate as it's up to users to open their commitments
     mapping(Epoch => mapping(bytes32 => address)) public commitments;
-
-    ICoordinator coordinator;
 
     // tracks the owners of NFTs that are transferred to this contract for auction
     mapping(uint256 => address) public nftOwners;
