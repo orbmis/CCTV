@@ -4,29 +4,14 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "./IBase.sol";
 
-struct TokenData {
-    address tokenAddress;
-    uint256 tokenId;
-    string tokenURI;
-}
-
-struct Item {
-    uint256 numberVotes;
-    uint256 left;
-    uint256 right;
-    uint256 categoryId;
-    uint256 reservePrice;
-    uint256 auctionClose;
-    uint256 salePrice;
-    TokenData tokendata;
-}
 
 /**
- * @title Coordinator
+ * @title ICoordinator
  * @dev Voting for NFTs
  */
-interface ICoordinator {
+interface ICoordinator is IBase {
 
     /**
      * This is basically the smart contract's constructor.
