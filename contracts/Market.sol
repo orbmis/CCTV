@@ -8,12 +8,15 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "./Coordinator.sol";
 import "./Router.sol";
 import "./Datastorage.sol";
+import "./LibLinkedList.sol";
 
 /**
  * @title Market
  * @dev Buying and Selling NFTs
  */
 contract Market is IERC721Receiver, Datastorage {
+
+    using LinkedList for LinkedList.ItemList;
 
     event NftDeposited(
         address indexed owner,
@@ -107,7 +110,7 @@ contract Market is IERC721Receiver, Datastorage {
     function withdrawNFT(address tokenContractAddress, uint256 tokenId)
         external
     {
-        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
+        LinkedList.Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         uint256 auctionClose = item.auctionClose;
 
@@ -150,7 +153,7 @@ contract Market is IERC721Receiver, Datastorage {
         uint256 reservePrice,
         uint256 auctionClose
     ) external {
-        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
+        LinkedList.Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         address tokenContract = item.tokendata.tokenAddress;
         uint256 currentClose = item.auctionClose;
@@ -183,7 +186,7 @@ contract Market is IERC721Receiver, Datastorage {
      * @param tokenId The nft's unique token id.
      */
     function cancelAuction(uint256 tokenId) external {
-        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
+        LinkedList.Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         address tokenContract = item.tokendata.tokenAddress;
 
@@ -223,7 +226,7 @@ contract Market is IERC721Receiver, Datastorage {
      * @param bidPrice The price the user is willing to bid for the item.
      */
     function placeBid(uint256 tokenId, uint256 bidPrice) external {
-        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
+        LinkedList.Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         // bidder must have enough balance to cover bid
         uint256 available = Coordinator(router).getAvailableBalance(msg.sender);
@@ -267,7 +270,7 @@ contract Market is IERC721Receiver, Datastorage {
      * @param bidPrice The price the user has bidded for the item.
      */
     function cancelBid(uint256 tokenId, uint256 bidPrice) external {
-        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
+        LinkedList.Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         Bid memory bid;
 
@@ -309,7 +312,7 @@ contract Market is IERC721Receiver, Datastorage {
      * @param tokenId The nft's unique token id.
      */
     function completeAuction(uint256 tokenId) external {
-        Item memory item = Coordinator(router).getItemByTokenId(tokenId);
+        LinkedList.Item memory item = Coordinator(router).getItemByTokenId(tokenId);
 
         address bidder = bids[tokenId][bids[tokenId].length - 1].bidder;
         uint256 bidPrice = bids[tokenId][bids[tokenId].length - 1].bidPrice;
