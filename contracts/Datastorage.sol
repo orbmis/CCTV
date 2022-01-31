@@ -5,7 +5,8 @@ pragma solidity >=0.7.0 <0.9.0;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "./ICoordinator.sol";
+import "./LibLinkedList.sol";
+import "./Coordinator.sol";
 import "./IBase.sol";
 
 /**
@@ -19,7 +20,9 @@ contract Datastorage is IBase {
     // the native token for this system
     ERC20 token;
 
-    ICoordinator coordinator;
+    Coordinator coordinator;
+
+    LinkedList.ItemList itemList;
 
     // the address of the market / auction contract
     // only the market contract can call functions to update balances etc.
@@ -43,20 +46,11 @@ contract Datastorage is IBase {
     // every item is added under a category
     string[] categories;
 
-    // collection of items (NFTS) that have been added to collection
-    Item[] public items;
-
-    // maps an item's tokenId to it's index in the collection
-    mapping(uint256 => uint256) public itemIndices;
-
     // balances of users that have deposited to contract and earned rewards
     mapping(address => uint256) public balances;
 
     // balances of users that have staked on voting commitment and have had tokens locked
     mapping(address => uint256) public balancesLocked;
-
-    // mapping of "number-of-votes", to item at head of the section for items with those number of votes
-    mapping(uint256 => uint256) itemVotesIndex;
 
     // mapping of epoch -> commitment -> user address
     // commitments are stored as a mapping so we can prevent collisions

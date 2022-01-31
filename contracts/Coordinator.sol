@@ -5,6 +5,8 @@ pragma solidity >=0.7.0 <0.9.0;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./Datastorage.sol";
+import "./LibLinkedList.sol";
+
 
 // CCTV - Community Curated Token Voting
 
@@ -23,6 +25,8 @@ import "./Datastorage.sol";
  * @dev Voting for NFTs
  */
 contract Coordinator is Datastorage {
+
+    using LinkedList for LinkedList.ItemList;
 
     // to disambiguate from default initialization value of address types, i.e. address(0)
     address constant BURN_ADDRESS =
@@ -52,7 +56,7 @@ contract Coordinator is Datastorage {
         uint256 itenIndex
     );
 
-    event VoteCast(uint256 indexed itemIndex, bool downVote, Item item);
+    event VoteCast(uint256 indexed itemIndex, bool downVote, LinkedList.Item item);
     event VoteCommitment(address voter, bytes32 commitHash);
     event Deposit(address depositor, uint256 amount);
     event Withdraw(address depositor, uint256 amount);
@@ -116,7 +120,7 @@ contract Coordinator is Datastorage {
         // push a null item to start of the array in order that the array is not zero-indexed
         // this is because we want any item that references index 0 to be at the start or end of the collection
         // therefore, index 0 has to be reserved, and can't contain any actual real item.
-        items.push(Item(0, 0, 0, 0, 0, 0, 0, TokenData(address(0), 0, "")));
+        itemList.items.push(LinkedList.Item(0, 0, 0, 0, 0, 0, 0, LinkedList.TokenData(address(0), 0, "")));
 
         // the first category is the default category, which cannot be edited or assigned to an item
         categories.push("default");
@@ -147,47 +151,7 @@ contract Coordinator is Datastorage {
         // ERC721 nftContract = ERC721(tokenContractAddress);
         // string memory metadata = nftContract.tokenURI(tokenId);
 
-        // collate metadata
-        TokenData memory tokenData = TokenData(
-            tokenContractAddress,
-            tokenId,
-            tokenUri
-        );
-
-        require(categoryId > 0, "Category id must be greater than zero");
-
-        // create new item
-        Item memory item = Item(
-            ADJUSTED_ZERO, // numberVotes
-            0, // left
-            0, // right
-            categoryId,
-            0, // reservePrice
-            0, // auctionClose
-            0, // salePrice
-            tokenData
-        );
-
-        // add new token to collection
-        items.push(item);
-
-        // get the current item's index
-        uint256 newItemIndex = items.length - 1;
-
-        // get item that is currently at the head of the zero-votes section
-        uint256 currentZeroVotesHead = itemVotesIndex[0];
-
-        // set the left value of the new item to the item that WAS at the head of the zero votes section
-        items[currentZeroVotesHead].left = newItemIndex;
-
-        // set the right value of the previous HEAD item to the index of the new item
-        items[newItemIndex].right = currentZeroVotesHead;
-
-        // update the index so that the head of the zero votes section points to the new item's index
-        itemVotesIndex[0] = newItemIndex;
-
-        // add the item index to the itemIndices mapping under the item's token id
-        itemIndices[tokenId] = newItemIndex;
+        uint256 newItemIndex = itemList.insert(tokenContractAddress, tokenId, tokenUri, categoryId, ADJUSTED_ZERO);
 
         emit ItemAdded(tokenContractAddress, tokenId, tokenUri, newItemIndex);
     }
@@ -200,48 +164,18 @@ contract Coordinator is Datastorage {
      * @param downVote This flag is set the vote is a downvote, and should be subtracted from the item's total votes.
      */
     function vote(uint256 itemIndex, bool downVote) internal {
-        // get the current number of votes that the specified item has at the moment
-        uint256 currentNumberVotes = items[itemIndex].numberVotes;
-
-        // calculate the new level of votes the item has
-        uint256 newNumberVotes = downVote == true
-            ? currentNumberVotes - 1
-            : currentNumberVotes + 1;
-
-        // get the item that's at the head of the section of votes of the new number of votes
-        uint256 newVotesSectionHeadItem = itemVotesIndex[newNumberVotes];
-
-        // update the left pointer of the item on the current item's right to the item on the current item's left
-        items[items[itemIndex].right].left = items[itemIndex].left;
-
-        // update the right pointer of the item on the current item's left to the item on the current item's right
-        items[items[itemIndex].left].right = items[itemIndex].right;
-
-        // set the left pointer of the current item to the left pointer of the previous section head
-        items[itemIndex].left = items[newVotesSectionHeadItem].left;
-
-        // set the right pointer of the current item to the previous head of the votes section
-        items[itemIndex].right = newVotesSectionHeadItem;
-
-        // set the left pointer of the previous head to the current item
-        items[newVotesSectionHeadItem].left = itemIndex;
-
-        // set the head of the new votes section to the current item in the voting index
-        itemVotesIndex[newNumberVotes] = itemIndex;
-
-        // adjust the number of votes accordingly
-        items[itemIndex].numberVotes = newNumberVotes;
+        itemList.move(itemIndex, downVote);
 
         // we need to record to highest voted item in the epoch, and the second highest etc.
         for (uint256 i = 0; i < highestVotedItems.length; i++) {
-            if (highestVotedItems[i] >= items[itemIndex].numberVotes) {
-                highestVotedItems[i] = items[itemIndex].numberVotes;
+            if (highestVotedItems[i] >= itemList.items[itemIndex].numberVotes) {
+                highestVotedItems[i] = itemList.items[itemIndex].numberVotes;
 
                 break;
             }
         }
 
-        emit VoteCast(itemIndex, downVote, items[itemIndex]);
+        emit VoteCast(itemIndex, downVote, itemList.items[itemIndex]);
     }
 
     /**
@@ -375,10 +309,12 @@ contract Coordinator is Datastorage {
         address inactiveEpochCommitment = commitments[inactiveEpoch][
             commitHash
         ];
+
         address activeEpochCommitment = commitments[activeEpoch][commitHash];
 
         bool isRevealSuccess = inactiveEpochCommitment != address(0) &&
             inactiveEpochCommitment != BURN_ADDRESS;
+
         bool hasRevealedEarly = activeEpochCommitment != address(0) &&
             activeEpochCommitment != BURN_ADDRESS;
 
@@ -414,7 +350,7 @@ contract Coordinator is Datastorage {
      * @return numberItems The number of items in the collection.
      */
     function getNumberItems() public view returns (uint256 numberItems) {
-        numberItems = items.length;
+        numberItems = itemList.items.length;
     }
 
     /**
@@ -423,81 +359,31 @@ contract Coordinator is Datastorage {
      * @param index The index of the item to retrieve the data for.
      * @return The item referenced by the given token id.
      */
-    function getItem(uint256 index) public view returns (Item memory) {
-        return items[index];
+    function getItem(uint256 index) public view returns (LinkedList.Item memory) {
+        return itemList.items[index];
     }
 
     /**
-     * Retrieves a page of items from a specified page number.
+     * Retrieves a page of items from either a specified page number,
+     * or starting from the last item that was previously retrieved.
      *
-     * @param requestedPageNumber The page number of the page of items to retrieve.
-     * @return itemList The requested page of items.
-     */
-    function getPageFromPageNumber(uint256 requestedPageNumber)
-        external
-        view
-        returns (Item[10] memory itemList)
-    {
-        bool pageComplete = false;
-
-        uint256 n = 0;
-        uint256 i = 1;
-        uint256 p = 1;
-        uint256 currentPageNumber = 1;
-        uint256 nextItemIndex = 0;
-
-        while (!pageComplete) {
-            Item memory currentItem = items[i];
-            nextItemIndex = currentItem.right;
-
-            i++;
-            p++;
-
-            if (currentPageNumber > requestedPageNumber) {
-                break;
-            }
-
-            if (currentPageNumber == requestedPageNumber) {
-                itemList[n] = currentItem;
-                n++;
-            }
-
-            if (nextItemIndex == 0) {
-                break;
-            }
-
-            if (p == 10) {
-                currentPageNumber++;
-                p = 1;
-            }
-        }
-    }
-
-    /**
-     * Retrieves a page of items from the last item that was retrieved.
      * This assumes the user has started at the start of the collection,
      * i.e. the item with most votes, and is working down the list of items
      * one page at a time.  This approach does allow deep-linking into an
      * arbitrary page in the collection, and allows working from first page onwards.
      *
-     * @param itemIndex The index of the last item that was retrieved.
-     * @return itemList The next page of items.
+     * @param offset The index of the last item that was retrieved.
+     * @param countByPageNumber If set, indicate that we should retrieve by page number.
+     * @return page The next page of items.
      */
-    function getPageFromItemIndex(uint256 itemIndex)
+    function getPageFromItemIndex(uint256 offset, bool countByPageNumber)
         external
         view
-        returns (Item[10] memory itemList)
+        returns (LinkedList.Item[10] memory page)
     {
-        itemList[0] = items[itemIndex + 1];
-
-        for (uint256 i = 1; i < 10; i++) {
-            // in case we reach the end of the collection
-            if (itemList[i - 1].right == 0) {
-                break;
-            }
-
-            itemList[i] = items[itemList[i - 1].right];
-        }
+        page = countByPageNumber
+            ? itemList.getPageFromPageNumber(offset)
+            : itemList.getPageFromItemIndex(offset);
     }
 
     /**
@@ -509,11 +395,11 @@ contract Coordinator is Datastorage {
     function getItemByTokenId(uint256 tokenId)
         public
         view
-        returns (Item memory item)
+        returns (LinkedList.Item memory item)
     {
-        uint256 itemIndex = itemIndices[tokenId];
+        uint256 itemIndex = itemList.itemIndices[tokenId];
 
-        item = items[itemIndex];
+        item = itemList.items[itemIndex];
     }
 
     /**
@@ -523,10 +409,10 @@ contract Coordinator is Datastorage {
      * @param tokenId The token id of the item to clear the auction for.
      */
     function clearItemAuctionData(uint256 tokenId) external onlyMarketContract {
-        uint256 itemIndex = itemIndices[tokenId];
+        uint256 itemIndex = itemList.itemIndices[tokenId];
 
-        items[itemIndex].reservePrice = 0;
-        items[itemIndex].auctionClose = 0;
+        itemList.items[itemIndex].reservePrice = 0;
+        itemList.items[itemIndex].auctionClose = 0;
     }
 
     /**
@@ -644,9 +530,9 @@ contract Coordinator is Datastorage {
         external
         onlyMarketContract
     {
-        uint256 itemIndex = itemIndices[tokenId];
+        uint256 itemIndex = itemList.itemIndices[tokenId];
 
-        items[itemIndex].salePrice = salePrice;
+        itemList.items[itemIndex].salePrice = salePrice;
     }
 
     /**
@@ -663,12 +549,12 @@ contract Coordinator is Datastorage {
         onlyMarketContract
         returns (bool result)
     {
-        uint256 itemIndex = itemIndices[tokenId];
+        uint256 itemIndex = itemList.itemIndices[tokenId];
 
-        uint256 salePrice = items[itemIndex].salePrice;
+        uint256 salePrice = itemList.items[itemIndex].salePrice;
 
         // if sale price is zero, then the ite is not for sale
-        require(items[itemIndex].salePrice > 0, "Item not for sale");
+        require(itemList.items[itemIndex].salePrice > 0, "Item not for sale");
 
         require(
             balances[newOwner] >= salePrice,
@@ -677,7 +563,7 @@ contract Coordinator is Datastorage {
 
         balances[newOwner] -= salePrice;
 
-        items[itemIndex].salePrice = 0;
+        itemList.items[itemIndex].salePrice = 0;
 
         result = true;
     }
