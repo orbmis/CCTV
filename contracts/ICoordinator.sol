@@ -6,7 +6,6 @@ import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./IBase.sol";
 
-
 /**
  * @title ICoordinator
  * @dev Voting for NFTs
@@ -99,49 +98,16 @@ interface ICoordinator is IBase {
     function getNumberItems() external view returns (uint256 numberItems);
 
     /**
-     * Accessor function for retrieving data for a single item.
-     *
-     * @param index The index of the item to retrieve the data for.
-     * @return The item referenced by the given token id.
-     */
-    function getItem(uint256 index) external view returns (Item memory);
-
-    /**
-     * Retrieves a page of items from a specified page number.
-     *
-     * @param requestedPageNumber The page number of the page of items to retrieve.
-     * @return itemList The requested page of items.
-     */
-    function getPageFromPageNumber(uint256 requestedPageNumber)
-        external
-        view
-        returns (Item[10] memory itemList);
-
-    /**
-     * Retrieves a page of items from the last item that was retrieved.
-     * This assumes the user has started at the start of the collection,
-     * i.e. the item with most votes, and is working down the list of items
-     * one page at a time.  This approach does allow deep-linking into an
-     * arbitrary page in the collection, and allows working from first page onwards.
-     *
-     * @param itemIndex The index of the last item that was retrieved.
-     * @return itemList The next page of items.
-     */
-    function getPageFromItemIndex(uint256 itemIndex)
-        external
-        view
-        returns (Item[10] memory itemList);
-
-    /**
-     * Retrieves an item given it's token id.
+     * Retrieves an item's data given it's token id.
+     * The relevant data is the token's contract address,
+     * it's reserver price, and the timestamp for when the auction closes.
      *
      * @param tokenId The unique id of the token to retrieve.
-     * @return item The item referenced by the given token id.
      */
-    function getItemByTokenId(uint256 tokenId)
+    function getItemMarketData(uint256 tokenId)
         external
         view
-        returns (Item memory item);
+        returns (address, uint256, uint256);
 
     /**
      * Clears the data for an existing auction. This is done by setting an auction's
@@ -220,5 +186,5 @@ interface ICoordinator is IBase {
      * @param tokenId The token id of the item to put up for sale.
      * @param newOwner The address to tokens to the item seller from.
      */
-    function completeItemSale(uint256 tokenId, address newOwner) external;
+    function completeItemSale(uint256 tokenId, address newOwner) external returns (bool);
 }

@@ -354,16 +354,6 @@ contract Coordinator is Datastorage {
     }
 
     /**
-     * Accessor function for retrieving data for a single item.
-     *
-     * @param index The index of the item to retrieve the data for.
-     * @return The item referenced by the given token id.
-     */
-    function getItem(uint256 index) public view returns (LinkedList.Item memory) {
-        return itemList.items[index];
-    }
-
-    /**
      * Retrieves a page of items from either a specified page number,
      * or starting from the last item that was previously retrieved.
      *
@@ -387,19 +377,43 @@ contract Coordinator is Datastorage {
     }
 
     /**
-     * Retrieves an item given it's token id.
+     * Accessor function for retrieving data for a single item.
+     * Retrieves an item given either it's token id or it's index.
+     * If no item is found using the supplied value as a token id,
+     * then the supplied value is considered to be the item's index.
      *
-     * @param tokenId The unique id of the token to retrieve.
+     * @param id The unique id or index of the token to retrieve.
      * @return item The item referenced by the given token id.
      */
-    function getItemByTokenId(uint256 tokenId)
+    function getItem(uint256 id)
         public
         view
         returns (LinkedList.Item memory item)
     {
+        uint256 itemIndex = itemList.itemIndices[id];
+
+        uint256 index = itemIndex == 0 ? id : itemIndex;
+
+        item = itemList.items[index];
+    }
+
+    /**
+     * Retrieves an item's data given it's token id.
+     * The relevant data is the token's contract address,
+     * it's reserver price, and the timestamp for when the auction closes.
+     *
+     * @param tokenId The unique id of the token to retrieve.
+     */
+    function getItemMarketData(uint256 tokenId)
+        public
+        view
+        returns (address, uint256, uint256)
+    {
         uint256 itemIndex = itemList.itemIndices[tokenId];
 
-        item = itemList.items[itemIndex];
+        LinkedList.Item memory item = itemList.items[itemIndex];
+
+        return (item.tokendata.tokenAddress, item.auctionClose, item.reservePrice);
     }
 
     /**
