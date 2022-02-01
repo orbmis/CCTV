@@ -5,6 +5,7 @@ pragma solidity >=0.7.0 <0.9.0;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./Datastorage.sol";
+import "./ICoordinator.sol";
 import "./LibLinkedList.sol";
 
 
@@ -24,7 +25,7 @@ import "./LibLinkedList.sol";
  * @title Coordinator
  * @dev Voting for NFTs
  */
-contract Coordinator is Datastorage {
+contract Coordinator is Datastorage, ICoordinator {
 
     using LinkedList for LinkedList.ItemList;
 
@@ -101,7 +102,7 @@ contract Coordinator is Datastorage {
         address tokenAddress,
         address marketContractAddress,
         address adminAddress
-    ) external {
+    ) external override {
         bytes32 storagePosition = keccak256("cctv.coordinator.0.0.1");
 
         bool contractInitialized;
@@ -145,7 +146,7 @@ contract Coordinator is Datastorage {
         uint256 tokenId,
         string memory tokenUri,
         uint256 categoryId
-    ) external {
+    ) external override {
         // verify the token being added is a valid erc-721 before actually adding it
         // note that the token contract must implement the ERC721Metadata extension
         // ERC721 nftContract = ERC721(tokenContractAddress);
@@ -192,7 +193,7 @@ contract Coordinator is Datastorage {
         uint256 itemIndex,
         bool downVote,
         uint256 blindingFactor
-    ) external {
+    ) external override {
         bytes32 commitHash = keccak256(
             abi.encodePacked(epoch, itemIndex, downVote, blindingFactor)
         );
@@ -237,7 +238,7 @@ contract Coordinator is Datastorage {
      *
      * @param commitment The hash value of the vote commitment.
      */
-    function commitVote(bytes32 commitment) external {
+    function commitVote(bytes32 commitment) external override {
         uint256 balanceAvailable = balances[msg.sender] -
             balancesLocked[msg.sender];
 
@@ -290,7 +291,7 @@ contract Coordinator is Datastorage {
         uint256 itemIndex,
         bool downVote,
         uint256 blindingFactor
-    ) external {
+    ) external override {
         // the epoch number needs to be part of the pre-image,
         // so that votes cannot be opened after 1 epoch has passed
         require(
@@ -349,7 +350,7 @@ contract Coordinator is Datastorage {
      *
      * @return numberItems The number of items in the collection.
      */
-    function getNumberItems() public view returns (uint256 numberItems) {
+    function getNumberItems() public view override returns (uint256 numberItems) {
         numberItems = itemList.items.length;
     }
 
@@ -406,7 +407,7 @@ contract Coordinator is Datastorage {
      */
     function getItemMarketData(uint256 tokenId)
         public
-        view
+        view override
         returns (address, uint256, uint256)
     {
         uint256 itemIndex = itemList.itemIndices[tokenId];
@@ -422,7 +423,7 @@ contract Coordinator is Datastorage {
      *
      * @param tokenId The token id of the item to clear the auction for.
      */
-    function clearItemAuctionData(uint256 tokenId) external onlyMarketContract {
+    function clearItemAuctionData(uint256 tokenId) external override onlyMarketContract {
         uint256 itemIndex = itemList.itemIndices[tokenId];
 
         itemList.items[itemIndex].reservePrice = 0;
@@ -436,7 +437,7 @@ contract Coordinator is Datastorage {
      *
      * @param amount The amount of tokens to deposit to the smart contract.
      */
-    function deposit(uint256 amount) external {
+    function deposit(uint256 amount) external override {
         token.transferFrom(msg.sender, address(this), amount);
 
         balances[msg.sender] += amount;
@@ -450,7 +451,7 @@ contract Coordinator is Datastorage {
      *
      * @param amount The amount that the user wishes to withdraw from the contract.
      */
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 amount) external override {
         // subtract any tokens that are curently locked from the amount available to withdraw
         uint256 balanceAvailable = balances[msg.sender] -
             balancesLocked[msg.sender];
@@ -476,7 +477,7 @@ contract Coordinator is Datastorage {
      */
     function getAvailableBalance(address userAddress)
         public
-        view
+        view override
         returns (uint256 available)
     {
         available = balances[userAddress] - balancesLocked[userAddress];
@@ -495,7 +496,7 @@ contract Coordinator is Datastorage {
         uint256 amount,
         bool negativeAdjustment,
         bool lockedBalance
-    ) public onlyMarketContract {
+    ) public override onlyMarketContract {
         require(
             msg.sender == marketContract,
             "Can only be called be market contract"
@@ -523,7 +524,7 @@ contract Coordinator is Datastorage {
      * @param categoryName The name of the new / updated category.
      */
     function updateCategories(uint256 categoryId, string memory categoryName)
-        external
+        external override
         onlyAdmin
     {
         if (categoryId > 0) {
@@ -541,7 +542,7 @@ contract Coordinator is Datastorage {
      * @param salePrice The price to sell the item for.
      */
     function initiateItemSale(uint256 tokenId, uint256 salePrice)
-        external
+        external override
         onlyMarketContract
     {
         uint256 itemIndex = itemList.itemIndices[tokenId];
@@ -559,7 +560,7 @@ contract Coordinator is Datastorage {
      * @return result True if everything went well.
      */
     function completeItemSale(uint256 tokenId, address newOwner)
-        external
+        external override
         onlyMarketContract
         returns (bool result)
     {

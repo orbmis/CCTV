@@ -4,13 +4,12 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "./IBase.sol";
 
 /**
  * @title ICoordinator
  * @dev Voting for NFTs
  */
-interface ICoordinator is IBase {
+interface ICoordinator {
 
     /**
      * This is basically the smart contract's constructor.
