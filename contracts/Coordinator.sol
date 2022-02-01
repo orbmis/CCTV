@@ -8,7 +8,6 @@ import "./Datastorage.sol";
 import "./ICoordinator.sol";
 import "./LibLinkedList.sol";
 
-
 // CCTV - Community Curated Token Voting
 
 // TODO: add support for tags, which aren't stored on-chain but emitted in event logs
@@ -28,24 +27,6 @@ import "./LibLinkedList.sol";
 contract Coordinator is Datastorage, ICoordinator {
 
     using LinkedList for LinkedList.ItemList;
-
-    // to disambiguate from default initialization value of address types, i.e. address(0)
-    address constant BURN_ADDRESS =
-        address(0x000000000000000000000000000000000000dEaD);
-
-    // to allow for negative numbers of votes, we create a range of -32768 to +32768
-    // to do this we take 2*16, or 65536, and set zero to the mid-point, i.e. 32768
-    // this means that 32760 is actually -8
-    uint256 constant ADJUSTED_ZERO = 2**128;
-
-    // currently users need to stake 1 token to vote
-    uint256 constant STAKE_AMOUNT = 10**18;
-
-    // currently users are rewarded 1 token for voting
-    uint256 constant REWARD_AMOUNT = 10**18;
-
-    // an epoch should be around a week (assuming block times are ~ 15 secs.)
-    uint32 constant EPOCH_LENGTH = 15 * 4 * 60 * 24 * 7;
 
     // attempt was made to commit a hash that was already used
     error CollisionDetected(bytes32 commitHash);
