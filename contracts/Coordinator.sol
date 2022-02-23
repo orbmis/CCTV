@@ -5,6 +5,8 @@ pragma solidity >=0.7.0 <0.9.0;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./Datastorage.sol";
+import "./ICoordinator.sol";
+import "./LibLinkedList.sol";
 
 // CCTV - Community Curated Token Voting
 
@@ -22,25 +24,9 @@ import "./Datastorage.sol";
  * @title Coordinator
  * @dev Voting for NFTs
  */
-contract Coordinator is Datastorage {
+contract Coordinator is Datastorage, ICoordinator {
 
-    // to disambiguate from default initialization value of address types, i.e. address(0)
-    address constant BURN_ADDRESS =
-        address(0x000000000000000000000000000000000000dEaD);
-
-    // to allow for negative numbers of votes, we create a range of -32768 to +32768
-    // to do this we take 2*16, or 65536, and set zero to the mid-point, i.e. 32768
-    // this means that 32760 is actually -8
-    uint256 constant ADJUSTED_ZERO = 2**128;
-
-    // currently users need to stake 1 token to vote
-    uint256 constant STAKE_AMOUNT = 10**18;
-
-    // currently users are rewarded 1 token for voting
-    uint256 constant REWARD_AMOUNT = 10**18;
-
-    // an epoch should be around a week (assuming block times are ~ 15 secs.)
-    uint32 constant EPOCH_LENGTH = 15 * 4 * 60 * 24 * 7;
+    using LinkedList for LinkedList.ItemList;
 
     // attempt was made to commit a hash that was already used
     error CollisionDetected(bytes32 commitHash);
@@ -52,7 +38,7 @@ contract Coordinator is Datastorage {
         uint256 itenIndex
     );
 
-    event VoteCast(uint256 indexed itemIndex, bool downVote, Item item);
+    event VoteCast(uint256 indexed itemIndex, bool downVote, LinkedList.Item item);
     event VoteCommitment(address voter, bytes32 commitHash);
     event Deposit(address depositor, uint256 amount);
     event Withdraw(address depositor, uint256 amount);
@@ -97,7 +83,7 @@ contract Coordinator is Datastorage {
         address tokenAddress,
         address marketContractAddress,
         address adminAddress
-    ) external {
+    ) external override {
         bytes32 storagePosition = keccak256("cctv.coordinator.0.0.1");
 
         bool contractInitialized;
@@ -116,7 +102,7 @@ contract Coordinator is Datastorage {
         // push a null item to start of the array in order that the array is not zero-indexed
         // this is because we want any item that references index 0 to be at the start or end of the collection
         // therefore, index 0 has to be reserved, and can't contain any actual real item.
-        items.push(Item(0, 0, 0, 0, 0, 0, 0, TokenData(address(0), 0, "")));
+        itemList.items.push(LinkedList.Item(0, 0, 0, 0, 0, 0, 0, LinkedList.TokenData(address(0), 0, "")));
 
         // the first category is the default category, which cannot be edited or assigned to an item
         categories.push("default");
@@ -141,53 +127,13 @@ contract Coordinator is Datastorage {
         uint256 tokenId,
         string memory tokenUri,
         uint256 categoryId
-    ) external {
+    ) external override {
         // verify the token being added is a valid erc-721 before actually adding it
         // note that the token contract must implement the ERC721Metadata extension
         // ERC721 nftContract = ERC721(tokenContractAddress);
         // string memory metadata = nftContract.tokenURI(tokenId);
 
-        // collate metadata
-        TokenData memory tokenData = TokenData(
-            tokenContractAddress,
-            tokenId,
-            tokenUri
-        );
-
-        require(categoryId > 0, "Category id must be greater than zero");
-
-        // create new item
-        Item memory item = Item(
-            ADJUSTED_ZERO, // numberVotes
-            0, // left
-            0, // right
-            categoryId,
-            0, // reservePrice
-            0, // auctionClose
-            0, // salePrice
-            tokenData
-        );
-
-        // add new token to collection
-        items.push(item);
-
-        // get the current item's index
-        uint256 newItemIndex = items.length - 1;
-
-        // get item that is currently at the head of the zero-votes section
-        uint256 currentZeroVotesHead = itemVotesIndex[0];
-
-        // set the left value of the new item to the item that WAS at the head of the zero votes section
-        items[currentZeroVotesHead].left = newItemIndex;
-
-        // set the right value of the previous HEAD item to the index of the new item
-        items[newItemIndex].right = currentZeroVotesHead;
-
-        // update the index so that the head of the zero votes section points to the new item's index
-        itemVotesIndex[0] = newItemIndex;
-
-        // add the item index to the itemIndices mapping under the item's token id
-        itemIndices[tokenId] = newItemIndex;
+        uint256 newItemIndex = itemList.insert(tokenContractAddress, tokenId, tokenUri, categoryId, ADJUSTED_ZERO);
 
         emit ItemAdded(tokenContractAddress, tokenId, tokenUri, newItemIndex);
     }
@@ -200,48 +146,18 @@ contract Coordinator is Datastorage {
      * @param downVote This flag is set the vote is a downvote, and should be subtracted from the item's total votes.
      */
     function vote(uint256 itemIndex, bool downVote) internal {
-        // get the current number of votes that the specified item has at the moment
-        uint256 currentNumberVotes = items[itemIndex].numberVotes;
-
-        // calculate the new level of votes the item has
-        uint256 newNumberVotes = downVote == true
-            ? currentNumberVotes - 1
-            : currentNumberVotes + 1;
-
-        // get the item that's at the head of the section of votes of the new number of votes
-        uint256 newVotesSectionHeadItem = itemVotesIndex[newNumberVotes];
-
-        // update the left pointer of the item on the current item's right to the item on the current item's left
-        items[items[itemIndex].right].left = items[itemIndex].left;
-
-        // update the right pointer of the item on the current item's left to the item on the current item's right
-        items[items[itemIndex].left].right = items[itemIndex].right;
-
-        // set the left pointer of the current item to the left pointer of the previous section head
-        items[itemIndex].left = items[newVotesSectionHeadItem].left;
-
-        // set the right pointer of the current item to the previous head of the votes section
-        items[itemIndex].right = newVotesSectionHeadItem;
-
-        // set the left pointer of the previous head to the current item
-        items[newVotesSectionHeadItem].left = itemIndex;
-
-        // set the head of the new votes section to the current item in the voting index
-        itemVotesIndex[newNumberVotes] = itemIndex;
-
-        // adjust the number of votes accordingly
-        items[itemIndex].numberVotes = newNumberVotes;
+        itemList.move(itemIndex, downVote);
 
         // we need to record to highest voted item in the epoch, and the second highest etc.
         for (uint256 i = 0; i < highestVotedItems.length; i++) {
-            if (highestVotedItems[i] >= items[itemIndex].numberVotes) {
-                highestVotedItems[i] = items[itemIndex].numberVotes;
+            if (highestVotedItems[i] >= itemList.items[itemIndex].numberVotes) {
+                highestVotedItems[i] = itemList.items[itemIndex].numberVotes;
 
                 break;
             }
         }
 
-        emit VoteCast(itemIndex, downVote, items[itemIndex]);
+        emit VoteCast(itemIndex, downVote, itemList.items[itemIndex]);
     }
 
     /**
@@ -258,7 +174,7 @@ contract Coordinator is Datastorage {
         uint256 itemIndex,
         bool downVote,
         uint256 blindingFactor
-    ) external {
+    ) external override {
         bytes32 commitHash = keccak256(
             abi.encodePacked(epoch, itemIndex, downVote, blindingFactor)
         );
@@ -303,7 +219,7 @@ contract Coordinator is Datastorage {
      *
      * @param commitment The hash value of the vote commitment.
      */
-    function commitVote(bytes32 commitment) external {
+    function commitVote(bytes32 commitment) external override {
         uint256 balanceAvailable = balances[msg.sender] -
             balancesLocked[msg.sender];
 
@@ -356,7 +272,7 @@ contract Coordinator is Datastorage {
         uint256 itemIndex,
         bool downVote,
         uint256 blindingFactor
-    ) external {
+    ) external override {
         // the epoch number needs to be part of the pre-image,
         // so that votes cannot be opened after 1 epoch has passed
         require(
@@ -375,10 +291,12 @@ contract Coordinator is Datastorage {
         address inactiveEpochCommitment = commitments[inactiveEpoch][
             commitHash
         ];
+
         address activeEpochCommitment = commitments[activeEpoch][commitHash];
 
         bool isRevealSuccess = inactiveEpochCommitment != address(0) &&
             inactiveEpochCommitment != BURN_ADDRESS;
+
         bool hasRevealedEarly = activeEpochCommitment != address(0) &&
             activeEpochCommitment != BURN_ADDRESS;
 
@@ -413,107 +331,71 @@ contract Coordinator is Datastorage {
      *
      * @return numberItems The number of items in the collection.
      */
-    function getNumberItems() public view returns (uint256 numberItems) {
-        numberItems = items.length;
+    function getNumberItems() public view override returns (uint256 numberItems) {
+        numberItems = itemList.items.length;
     }
 
     /**
-     * Accessor function for retrieving data for a single item.
+     * Retrieves a page of items from either a specified page number,
+     * or starting from the last item that was previously retrieved.
      *
-     * @param index The index of the item to retrieve the data for.
-     * @return The item referenced by the given token id.
-     */
-    function getItem(uint256 index) public view returns (Item memory) {
-        return items[index];
-    }
-
-    /**
-     * Retrieves a page of items from a specified page number.
-     *
-     * @param requestedPageNumber The page number of the page of items to retrieve.
-     * @return itemList The requested page of items.
-     */
-    function getPageFromPageNumber(uint256 requestedPageNumber)
-        external
-        view
-        returns (Item[10] memory itemList)
-    {
-        bool pageComplete = false;
-
-        uint256 n = 0;
-        uint256 i = 1;
-        uint256 p = 1;
-        uint256 currentPageNumber = 1;
-        uint256 nextItemIndex = 0;
-
-        while (!pageComplete) {
-            Item memory currentItem = items[i];
-            nextItemIndex = currentItem.right;
-
-            i++;
-            p++;
-
-            if (currentPageNumber > requestedPageNumber) {
-                break;
-            }
-
-            if (currentPageNumber == requestedPageNumber) {
-                itemList[n] = currentItem;
-                n++;
-            }
-
-            if (nextItemIndex == 0) {
-                break;
-            }
-
-            if (p == 10) {
-                currentPageNumber++;
-                p = 1;
-            }
-        }
-    }
-
-    /**
-     * Retrieves a page of items from the last item that was retrieved.
      * This assumes the user has started at the start of the collection,
      * i.e. the item with most votes, and is working down the list of items
      * one page at a time.  This approach does allow deep-linking into an
      * arbitrary page in the collection, and allows working from first page onwards.
      *
-     * @param itemIndex The index of the last item that was retrieved.
-     * @return itemList The next page of items.
+     * @param offset The index of the last item that was retrieved.
+     * @param countByPageNumber If set, indicate that we should retrieve by page number.
+     * @return page The next page of items.
      */
-    function getPageFromItemIndex(uint256 itemIndex)
+    function getPageFromItemIndex(uint256 offset, bool countByPageNumber)
         external
         view
-        returns (Item[10] memory itemList)
+        returns (LinkedList.Item[10] memory page)
     {
-        itemList[0] = items[itemIndex + 1];
-
-        for (uint256 i = 1; i < 10; i++) {
-            // in case we reach the end of the collection
-            if (itemList[i - 1].right == 0) {
-                break;
-            }
-
-            itemList[i] = items[itemList[i - 1].right];
-        }
+        page = countByPageNumber
+            ? itemList.getPageFromPageNumber(offset)
+            : itemList.getPageFromItemIndex(offset);
     }
 
     /**
-     * Retrieves an item given it's token id.
+     * Accessor function for retrieving data for a single item.
+     * Retrieves an item given either it's token id or it's index.
+     * If no item is found using the supplied value as a token id,
+     * then the supplied value is considered to be the item's index.
      *
-     * @param tokenId The unique id of the token to retrieve.
+     * @param id The unique id or index of the token to retrieve.
      * @return item The item referenced by the given token id.
      */
-    function getItemByTokenId(uint256 tokenId)
+    function getItem(uint256 id)
         public
         view
-        returns (Item memory item)
+        returns (LinkedList.Item memory item)
     {
-        uint256 itemIndex = itemIndices[tokenId];
+        uint256 itemIndex = itemList.itemIndices[id];
 
-        item = items[itemIndex];
+        uint256 index = itemIndex == 0 ? id : itemIndex;
+
+        item = itemList.items[index];
+    }
+
+    /**
+     * Retrieves an item's data given it's token id.
+     * The relevant data is the token's contract address,
+     * it's reserver price, and the timestamp for when the auction closes.
+     *
+     * @param tokenId The unique id of the token to retrieve.
+     */
+    function getItemMarketData(uint256 tokenId)
+        public
+        view override
+        returns (address, uint256, uint256)
+    {
+        uint256 itemIndex = itemList.itemIndices[tokenId];
+
+        LinkedList.Item memory item = itemList.items[itemIndex];
+
+        return (item.tokendata.tokenAddress, item.auctionClose, item.reservePrice);
     }
 
     /**
@@ -522,11 +404,11 @@ contract Coordinator is Datastorage {
      *
      * @param tokenId The token id of the item to clear the auction for.
      */
-    function clearItemAuctionData(uint256 tokenId) external onlyMarketContract {
-        uint256 itemIndex = itemIndices[tokenId];
+    function clearItemAuctionData(uint256 tokenId) external override onlyMarketContract {
+        uint256 itemIndex = itemList.itemIndices[tokenId];
 
-        items[itemIndex].reservePrice = 0;
-        items[itemIndex].auctionClose = 0;
+        itemList.items[itemIndex].reservePrice = 0;
+        itemList.items[itemIndex].auctionClose = 0;
     }
 
     /**
@@ -536,7 +418,7 @@ contract Coordinator is Datastorage {
      *
      * @param amount The amount of tokens to deposit to the smart contract.
      */
-    function deposit(uint256 amount) external {
+    function deposit(uint256 amount) external override {
         token.transferFrom(msg.sender, address(this), amount);
 
         balances[msg.sender] += amount;
@@ -550,7 +432,7 @@ contract Coordinator is Datastorage {
      *
      * @param amount The amount that the user wishes to withdraw from the contract.
      */
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 amount) external override {
         // subtract any tokens that are curently locked from the amount available to withdraw
         uint256 balanceAvailable = balances[msg.sender] -
             balancesLocked[msg.sender];
@@ -576,7 +458,7 @@ contract Coordinator is Datastorage {
      */
     function getAvailableBalance(address userAddress)
         public
-        view
+        view override
         returns (uint256 available)
     {
         available = balances[userAddress] - balancesLocked[userAddress];
@@ -595,7 +477,7 @@ contract Coordinator is Datastorage {
         uint256 amount,
         bool negativeAdjustment,
         bool lockedBalance
-    ) public onlyMarketContract {
+    ) public override onlyMarketContract {
         require(
             msg.sender == marketContract,
             "Can only be called be market contract"
@@ -623,7 +505,7 @@ contract Coordinator is Datastorage {
      * @param categoryName The name of the new / updated category.
      */
     function updateCategories(uint256 categoryId, string memory categoryName)
-        external
+        external override
         onlyAdmin
     {
         if (categoryId > 0) {
@@ -641,12 +523,12 @@ contract Coordinator is Datastorage {
      * @param salePrice The price to sell the item for.
      */
     function initiateItemSale(uint256 tokenId, uint256 salePrice)
-        external
+        external override
         onlyMarketContract
     {
-        uint256 itemIndex = itemIndices[tokenId];
+        uint256 itemIndex = itemList.itemIndices[tokenId];
 
-        items[itemIndex].salePrice = salePrice;
+        itemList.items[itemIndex].salePrice = salePrice;
     }
 
     /**
@@ -659,16 +541,16 @@ contract Coordinator is Datastorage {
      * @return result True if everything went well.
      */
     function completeItemSale(uint256 tokenId, address newOwner)
-        external
+        external override
         onlyMarketContract
         returns (bool result)
     {
-        uint256 itemIndex = itemIndices[tokenId];
+        uint256 itemIndex = itemList.itemIndices[tokenId];
 
-        uint256 salePrice = items[itemIndex].salePrice;
+        uint256 salePrice = itemList.items[itemIndex].salePrice;
 
         // if sale price is zero, then the ite is not for sale
-        require(items[itemIndex].salePrice > 0, "Item not for sale");
+        require(itemList.items[itemIndex].salePrice > 0, "Item not for sale");
 
         require(
             balances[newOwner] >= salePrice,
@@ -677,7 +559,7 @@ contract Coordinator is Datastorage {
 
         balances[newOwner] -= salePrice;
 
-        items[itemIndex].salePrice = 0;
+        itemList.items[itemIndex].salePrice = 0;
 
         result = true;
     }
