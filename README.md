@@ -4,7 +4,6 @@ This describes a system to facilitate the curation of NFTs by community / user v
 
 
 ## Introduction
-----
 
 
 There are a number of NFT marketplaces on the web at the moment, and they largely share the same characteristics, in as far as they allow users to brows NFTs, as well as publish and trade NFTs.  Some of these marketplaces have slightly different features, for instance there are those that rank collectibles by rarity of the combination of their traits.  That being said, most NFT marketplaces currently suffer from the same drawbacks from a user’s perspective: the challenge of separating signal from noise.
@@ -13,14 +12,12 @@ There has been a huge explosion in the popularity of NFTs as a medium for publis
 
 
 ## Incentivised Voting:
-----
 
 
 To address this challenge, I propose a system of incentivised voting as a way to separate the signal from the noise, and to encourage people to take the time to browse published NFTs and vote on them, in order to create a community curated collection that promotes the most diligent and talented artists, and which evolves over time.  This collection would help to make NFTs more accessible to people, making it easier to discover and appreciate great art.
 
 
 ## Gamification:
-----
 
 
 Anyone can list a published NFT to the platform, published being in the sense that it has been published to a public ledger using the erc-721 standard.
@@ -41,7 +38,6 @@ Awarding the votes to the second highest voted item, means that it will always c
 
 
 ## Example:
-----
 
 
 Let x be the number of votes for the highest voted item
@@ -51,7 +47,6 @@ In this case, the malicious actor would need to spend x + y to guarantee that th
 
 
 ## Commit-reveal scheme:
-----
 
 
 The main challenge with the above described system is that all votes are public.  This means that malicious actors can leverage the votes that other users have already placed to close the gap between the cost of a sybil attack, and the rewards obtained.  It also has the disadvantage of incentivising people to vote for items simply because other users have voted for them, and which have a perceived probability of being the item that will receive voting rewards.  This “network effect” will undoubtedly undermine the goal of incentivising people to vote on items based on artistic merit.
@@ -78,7 +73,6 @@ This ensures when the vote is revealed, is can only be counted if the epoch numb
 Number of votes - offset to allow negative numbers!!!
 
 ## Sorting Items by vote - allowing users visibility to highest voted art work:
-----
 
 
 Voting for items means nothing if other users can’t see which items have been votes highest by the community, or inversely, voted lowest so that they are effectively filtered out.
@@ -86,7 +80,6 @@ Voting for items means nothing if other users can’t see which items have been 
 In order to achieve this, items need to be maintained in a sorted list on-chain.  This requires a sorting algorithm that is efficient and cheap. For this reason, items are stored in a linked-list data structure, and an index is maintained of the number of votes each item has.
 
 ## Linked-list:
-----
 
 
 Every item has the following properties:
@@ -136,7 +129,6 @@ Record the highest voted item in the epoch, and the second highest, for voting r
 Using this method of maintain a linked-list data structure means that users can retrieve items sorted by votes.  This is done by a function that paginates through the list.  With a fixed page size of 10 items, the function takes the item that is at the head of the section with the highest number of votes, and traverses the linked-list by aggregates the page of recursively retrieving the item that is pointed to by the current item’s “right” property.
 
 ## Market / Auction
-----
 
 While any NFTs can be listed on the system and can then henceforth be voted on, this does not facilitate any trading or transfer of NFTs through the platform.  To do this, the NFT owner must transfer the NFT to the auction smart contract and start an auction.
 
