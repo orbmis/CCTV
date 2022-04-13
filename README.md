@@ -34,11 +34,11 @@ The total supply of the tokens in the system is fixed.  There is no issuance of 
 
 In order to maintain liveness in the system, the voting fee and voting stake is calculated as a function of the total number of votes cast within the previous epoch.  The fee / stake is calculated as:
 
-![Voting Fee Formula](CCTV/images/cctv_voting_fee_function.png "Voting Fee Formula")
+![Voting Fee Formula](images/cctv_voting_fee_function.png "Voting Fee Formula")
 
 This pricing mechanism ensures that the voting fee + stake will decrease asymptotically as the number of votes increases, thereby eliminating any upper bound on the number of concurrent votes in the system.
 
-![Voting Fee Curve](CCTV/images/cctv_voting-fee-curve.png "Overview of function of calculation of voting fee based on number of votes")
+![Voting Fee Curve](images/cctv_voting-fee-curve.png "Overview of function of calculation of voting fee based on number of votes")
 
 ## Sybil Resistance
 
@@ -89,7 +89,7 @@ Rewards are paid to voters in a certain intervals, as paramterized by the system
 
 This has a dual-purpose: first:  it allows for a fair way to maintain a gamification of the system, helping incentivize people to actualy spend small amounts of tokens on voting, with the chance of winning a reward.  Second: it acts as a way to balance the supply of tokens, by avoiding a scenarion where the total supply of tokens diminishes after every epoch.
 
-![Stock and Flow Diagram](CCTV/images/cctv_stock-and-flow.png "Stock and Flow Diagram")
+![Stock and Flow Diagram](images/cctv_stock-and-flow.png "Stock and Flow Diagram")
 
 ## Sorting Items by vote (allowing users visibility to highest voted art work)
 
@@ -154,7 +154,7 @@ Using this method of maintaining a linked-list data structure means that users c
 
 Note: while is done onchain, the data can also be cached by a centralized service in order to increase performance, which wouldl result in better UX.
 
-![Linked List](CCTV/images/cctv_linked-list.png "Linked List Index")
+![Linked List](images/cctv_linked-list.png "Linked List Index")
 
 ## Market / Auction
 
